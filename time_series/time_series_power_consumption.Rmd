@@ -2,7 +2,7 @@
 title: "Serie Chronologique"
 author: "Eva BOGUSLAWSKI, Audrey CANAL, Yasmina Djerroud et Giulia SANTARSIERI"
 date: "12 janvier 2021"
-output: html_document:
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
