@@ -2,7 +2,7 @@
 title: "Projet 4M074"
 author: "Djerroud Santarsieri"
 date: "19/04/2020"
-output: html_document
+output: output: rmarkdown::github_document
 ---
 
 # Approximation de toute densité continue par un mélange gaussien 
