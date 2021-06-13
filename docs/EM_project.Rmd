@@ -1,0 +1,347 @@
+---
+title: "Projet 4M074"
+author: "Djerroud Santarsieri"
+date: "19/04/2020"
+output: output: rmarkdown::github_document
+---
+
+# Approximation de toute densité continue par un mélange gaussien 
+
+###  Modèle de mélange gaussien
+
+
+Un modèle de mélange gaussien est un modèle statistique exprimé par une densité de mélange. Il sert usuellement à estimer paramétriquement la distribution de variables aléatoires en les modélisant comme une somme de plusieurs gaussiennes.
+
+```{r setup, include=FALSE}
+library(shiny)
+library('mixtools')
+```
+
+### Le modèle
+
+Le modèle de mélange fini de lois de probabilité consiste à supposer que les données proviennent d’une source contenant plusieurs sous-populations homogènes appelées composants.
+La population totale est un mélange de ces sous-populations. Le modèle résultant est un modèle de mélange fini.
+
+Soit $X=(X_1,\dots,X_n)$  un échantillon de variables aléatoires indépendantes identiquement distribuées (iid ) de loi de mélange fini à $K$ composants, de densité f dont  la forme générale est :
+$$f(x)=\sum_{k=1}^{K}\pi_k h_{\Phi_k}(x)$$
+avec: 
+
+* $\pi_k$ les proportions respectives des sous populations telle que $0<\pi_k\leq1$ et $\sum_{k=1}^{K}\pi_k=1$
+
+* $h_{\Phi_k}$ la densité du k-ième composant (une gaussienne $\mathcal{N}(\mu_k,\sigma_k^2)$).
+
+
+Le modèle de mélange est un modèle à données manquantes. En effet, si on échantillonnait dans une population formée par K sous-populations, on devrait avoir les couples $( X_i,Z_i)$, où $X_i=x_i$ indique la mesure faite sur le i-ème individu et $Z_i=k$ indique le numéro de la sous-population à laquelle appartient cet individu. 
+En échantillonnant dans la sous population $k$ et en supposant $X$ discrète, on obtiendrait alors le modèle $\mathbb{P}( X =x|Z=k )= f_k( x ,\alpha_k)$. Mais le paramètre $\alpha_k$ est en général inconnu et propre à la k-ième sous-population.
+De même,les données manquantes sont $Z=(Z_1,\dots, Z_n)$,avec $Z_i=k$ si $i$ provient du groupe $k$.
+
+On n'observe donc que l’échantillon $( X_1,\dots,X_n)$. 
+Le mélange définit plus haut peut être vu comme la loi marginale de la variable $X$ pour le couple $(X , Z)$. C'est donc un modèle à données manquantes.
+
+### Remarque:
+
+**Toute densité continue peut s'approcher à l'aide d'un mélange gaussien, au sens de la norme $\ L_1$ ou uniformement sur tout compact.**
+
+Cela s'appuie sur le théorème suivant: 
+
+
+### Théorème
+
+
+Soit $g$ une densité continue. Pour tout $\varepsilon >0$ il existe un mélange gaussien fini de densité $\overline{g}$  donnée par :
+
+$$\overline{g}=\sum_{j=1}^{m} \pi_jf_\mathcal{N(\mu_j,\sigma_j^2)}(x) $$
+avec $\mu_j\in \mathbb{R}$, $\sigma_j >0$ tel que $\sum_{j=1}^{m}\pi_j=1$, tel que 
+$$\|g-\overline{g}\|_1:=\int_\mathbb{R} \ |\ g(x)-\overline{g}(x)|<\varepsilon $$
+
+
+De même, pour tout $\varepsilon >0$ et tout compact $\kappa$, il existe un mélange gaussien fini de densité $\overline{g}$ tel que
+$$\sup_{x\in \kappa} |\ g(x)-\overline{g}(x) |<\varepsilon $$
+
+
+
+
+### Illustration du théorème
+
+Ici, notre but sera d'illustrer graphiquement ce thèorème. On se restreindra aux densités continues usuelles: densité d'une loi gamma de paramètres $\ a$ et $\ b$ , $\Gamma\ (a,b)$, loi Beta $\ B \ (a,b)$, loi de Student $\ T \ (k)$ à $\ k$ degrés de liberté, loi du $\ X ^2 \ (k)$ et loi de Fisher $\ F \ (d_1,d_2)$. 
+
+On verra par la suite que toutes ces densités peuvent être approchées par des mélanges gaussiens à densité unimodale, parfois dyssimétrique ou fortement dyssimétrique, parfois par des densités avec outlier. Comment approcher donc ces densités?
+En reprenant la formule plus haut, 
+$$\overline{g}=\sum_{j=1}^{m} \pi_jf_\mathcal{N(\mu_j,\sigma_j^2)}(x) $$
+on remarque que pour pouvoir déterminer notre mélange gaussien, on devra estimer le vecteur des paramètres $\theta = (\mu_1,...,\mu_m, \sigma_1^2,...,\sigma_m^2,\pi_1,...,\pi_m)$, $\ j \in \ [1,..m]$
+Pour le faire, on a décidé d'utiliser l'algorithme EM (espérance-maximisation). Cet algorithme calcule par itération les paramètres de l'EMV en considérant l'esperance conditionnelle de la log-vraisemblance des données observées et le paramètre obtenu à l'itération précedente.
+
+On a décidé d'utiliser cet algorithme à travers le package R _mixtools_ (pour les 3 premiers exemples ) et l'algorithme EM vu en TP (pour les 2 derniers exemples ). Pour rendre notre illustration plus intéressante on a laissé à l'utilisateur le choix des paramètres suivants:
+- $\ n$: nombre d'observations qui vont être utilisées par l'algorithme
+-$\ d_1, \ d_2 , \ a, \ b$: paramètres des lois choisies
+- $\ l$: ordre du mélange 
+
+Passons maintenant à l'illustration pour les différentes lois:
+
+
+
+
+
+
+#### Loi de Student $\mathcal{T}(df1)$
+
+On crée une fonction qui determine la densité d'une loi de Student et on dessine la courbe de la densité d'une loi de Student à 5 (choix arbitraire pour effectuer l'illustration) degrés de liberté.
+
+```{r  ,include=FALSE}
+dstudent <- function(x, df1){
+    dens <- rep(0, length(x))
+    return(dens+dt(x,df1))
+}
+
+df1 <- 5
+curve(dstudent(x,df1),xlim=c(-4,4),ylim=c(0,.5),lwd=2,ylab='',xlab='',col='blue', main="Densité d'une Student T(5)")
+
+```
+
+
+On voit que l'on peut approcher une loi de Student par une densité gaussienne unimodale.
+On utilise donc l'algorithme EM en simulant 10000 observations d'une loi de Student à 5 degrés de liberté.
+
+
+```{r,echo=FALSE,warning=FALSE}
+df1 <- 5
+obs1 <- rt(10000,df1)
+
+hist(obs1,xlim=c(-10,10),ylim=c(0,.4),prob =TRUE,main="Approximation par mélange gaussien d'une Student",lty=3)
+curve(dstudent(x,df1),xlim=c(-4,4),ylim=c(0,.5),lwd=2,ylab='',xlab='',col='blue',add=TRUE)
+
+library('mixtools')
+mix1 <- normalmixEM(obs1,k=2,maxit=100,epsilon=.01)
+
+melange <- function(x,mix){
+  dens <- rep(0, length(x))
+  K <- length(mix$lambda)
+  for (k in 1:K){
+    dens <- dens + mix$lambda[k]*dnorm(x,mix$mu[k],mix$sigma[k])
+  return (dens)
+  }
+}
+
+curve(melange(x,mix1),xlim=c(-4,4),ylim=c(0,.5),add=TRUE,col='red')
+legend(4,.3,c('Densité Student','Mélange gaussien'),col=c('blue','red'),pch=16)
+```
+
+La densité d'une loi de Student est très bien approchée par un mélange gaussien.
+
+
+#### Loi du Chi 2 $\mathfrak{\chi}^2_{(d1)}$
+
+On crée une fonction qui determine la densité d'une loi du Chi-2 et on dessine la courbe de la densité d'une loi du Chi-2 à 4 degrés de liberté.
+
+
+```{r,echo=FALSE}
+dchi2 <- function(x,df1){
+  dens <- rep(0,length(x))
+  return (dens+dchisq(x,df1))
+}
+
+df1 <- 4
+curve(dchi2(x,df1),xlim=c(0,30),lwd=2,ylab='',xlab='',col='green',main="Densité d'une Chi-2 X^2(4)")
+
+```
+
+
+On voit que l'on peut approcher une loi de Student par un mélange gaussien à densité dissymétrique,
+On utilise donc l'algorithme EM en simulant 10000 observations d'une loi du Chi-2 à 4 degrés de liberté.
+
+
+```{r,echo=FALSE}
+df1 <- 4
+obs2 <- rchisq(10000,df1)
+
+hist(obs2,xlim=c(0,30),prob=TRUE,main="Approximation par mélange gaussien d'une Chi-2",lty=3)
+curve(dchi2(x,df1),xlim=c(0,30),ylim=c(0,.3),lwd=2,ylab='',xlab='',col='green',add=TRUE)
+
+mix2 <- normalmixEM(obs2,k=2,maxit=100,epsilon=.01)
+curve(melange(x,mix2),xlim=c(0,30),ylim=c(0,.3),add=TRUE,col='red')
+
+legend(15,.1,c('Densité Chi-2','Mélange gaussien'),col=c('green','red'),pch=16)
+
+```
+
+
+
+#### Loi de Fisher $\mathcal{F}^{d1}_{d2}$
+
+On crée une fonction qui determine la densité d'une loi de Fisher et on dessine la courbe de la densité d'une loi de Fisher à 10,20  degrés de liberté.
+ 
+
+```{r,echo=FALSE}
+dfisher <- function(x,df1,df2){
+    dens <- rep(0,length(x))
+  return (dens+df(x,df1,df2))
+}
+
+df1 <- 10
+df2 <- 20
+
+curve(dfisher(x,df1,df2),xlim=c(0,6),ylim=c(0,.9),lwd=2,ylab='',xlab='',col='pink',main="Densité d'une Fisher F(10,20)")
+
+```
+
+
+On voit que l'on peut approcher une loi de Student par un mélange gaussien à densité dissymétrique,
+On utilise donc l'algorithme EM en simulant 1000 observations suivant une loi de Fisher à 10,20 degrés de liberté.
+
+
+```{r,echo=FALSE}
+df1 <-10
+df2 <-20
+obs3 <- rf(1000,df1,df2)
+
+hist(obs3,xlim=c(0,6),ylim=c(0,.8),prob = TRUE,main="Approximation par mélange gaussien d'une Fisher",lty=3)
+curve(dfisher(x,df1,df2),xlim=c(0,6),ylim=c(0,.7),lwd=2,ylab='',xlab='',col='pink',add=TRUE)
+
+mix3 <- normalmixEM(obs3,k=2,maxit=100,epsilon=.001)
+curve(melange(x,mix3),xlim=c(0,6),ylim=c(0,.7),add=TRUE,col='red')
+
+legend(4,.3,c('Densité Fisher','Mélange gaussien'),col=c('pink','red'),pch=16)
+```
+
+#### Loi Bêta
+Dans cette partie on veut simuler la densité de la loi Beta par un mélange gaussien:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+curve(dbeta(x,2,3),xlim=c(-1,2),main='Densité de la loi beta',xlab='x',ylab='dbêta(2,3)')
+```
+
+
+D'aprés le courbe obtenue on propose d'utiliser un modèle melange  avec  densité unimodale dissymétrique.
+
+
+```{r include=FALSE}
+theta = list(pi=c(1,1,3)/5, mu=c(0,1/2,13/15), sig=c(1,(2/3)^2,(5/9)^2))
+update.theta <- function(obs, theta){
+  nb <- length(obs) 
+  K  <- length(theta$mu) 
+  
+  # calcul des alpha_ji
+  alpha <- matrix(NA, nrow=K, ncol=nb)
+  for (j in 1:K){
+    alpha[j,] <- theta$pi[j]*dnorm(obs,theta$mu[j],theta$sig[j])
+  }
+  p.theta <- apply(alpha, 2, 'sum')
+  alpha   <- alpha/matrix(p.theta, byrow=TRUE, nrow=K, ncol=nb)
+  
+  # mise à jour des paramètres  
+  pi.new  <- apply(alpha, 1, 'mean')
+  mu.new  <- c(alpha%*%obs/nb/pi.new)
+  mat     <- (matrix(rep(obs,each=K), nrow=K) -matrix(rep(mu.new, times=nb), nrow=K))^2
+  sig.new <- sqrt(apply(alpha*mat, 1, 'mean')/pi.new)
+  
+  theta.new <-  list(pi =pi.new, mu=mu.new, sig=sig.new)
+  return(theta.new)
+}
+rnormmix <- function(n, theta){
+  K <- length(theta$pi)
+  etiqu <- sample(1:K, size=n, replace=TRUE, prob=theta$pi)
+  obs <- rep(NA, n)
+  i <- 1
+  for (k in 1:K){
+    n.group <- sum(etiqu==k)
+    if(n.group>0){
+      obs[i:(i+n.group-1)] <- rnorm(n.group, theta$mu[k], theta$sig[k])
+      i <- i + n.group
+    }
+  }        
+  return(obs)
+}
+
+obs<-rbeta(10000,2,3)
+```
+
+
+```{r include=FALSE}
+algoEM <- function(obs, theta.init){   
+
+  resultat <- list(emv = theta.new, nb.iter = it)
+  return(resultat)
+}
+dnormmix <- function(x,theta){
+  dens <- rep(0, length(x))
+  K <- length(theta$pi)
+  for (k in 1:K){
+    dens <- dens + theta$pi[k]*dnorm(x, theta$mu[k], theta$sig[k])
+  }                                         
+  return(dens)
+}
+
+lvraisnorm <- function(param, obs){    
+  logvrais <- sum(log(dnormmix(obs, param)))
+  return(logvrais)
+}
+
+algoEM <- function(obs, theta.init, R=200, epsilon=1e-3){   
+  theta.old <- theta.init
+  crit_arret <- FALSE
+  log.vrais.old <- lvraisnorm(theta.init, obs)
+  it <- 0
+  while (!crit_arret && (it < R))
+    { 
+    theta.new <- update.theta(obs, theta.old)
+    log.vrais.new <- lvraisnorm(theta.new, obs)
+    crit_arret <- (abs((log.vrais.new - log.vrais.old)/log.vrais.old) < epsilon)
+    log.vrais.old <- log.vrais.new
+    theta.old <- theta.new
+    it <- it + 1
+  }
+  resultat <- list(emv = theta.new, nb.iter = it)
+  return(resultat)
+}
+
+res <- algoEM(obs,theta)
+res
+
+```
+
+
+
+Après la simulation nous obtenons le graphe suivant:
+
+
+
+```{r, echo=FALSE}
+hist(obs, freq=FALSE, xlim=c(-1, 2),ylim=c(0,2), main='Résultat de la simulation pour la loi Beta',xlab='observations',ylab='densité Bêta')
+curve(dnormmix(x, res$emv), add=TRUE, col='red')
+curve(dbeta(x,2,3), add=TRUE, col='blue')
+legend(1,2,c('Densité Bêta(2,3)','Mélange gaussien'),col=c('blue','red'),pch=16)
+```
+
+On remaque que ce modèle est plutôt approprié.
+
+
+####  Loi Gamma 
+
+Nous allons proceder de la même manière pour la loi Gamma :
+
+```{r echo=FALSE}
+curve(dgamma(x,2,2),xlim=c(-1,4), main='Densité de la loi Gamma', xlab='x',ylab='dGamma(2,2)')
+```
+
+
+Ici aussi on choisit un modèle de densité unimodale dissymetrique:
+
+```{r echo=FALSE}
+theta2 = list(pi=c(1,1,3)/5, mu=c(0,1/2,13/15), sig=c(1,(2/3)^2,(5/9)^2))
+obs2<-rgamma(10000,2,2)
+res2 <- algoEM(obs2,theta2)
+ymax <- max(c(dnormmix(obs2, res2$emv), dnormmix(obs2, theta2)))
+hist(obs2, freq=FALSE, ylim=c(0,2),xlim=c(-1,4), main='Résultat de la simulation pour la loi Gamma',xlab='observations',ylab='densité gamma')
+curve(dnormmix(x, res2$emv), add=TRUE, col='red')
+curve(dgamma(x,2,2), add=TRUE, col='blue')
+legend(2,1,c('Densité Gamma (2,2)','Mélange gaussien'),col=c('blue','red'),pch=16)
+```
+ 
+Le modèle utilisé estime assez bien les données.
+
+
+
+### Conclusion
+
+L'approximation par un mélange gaussien n'est pas parfaite pour toutes les densités continues qu'on a considéré dans ce projet, mais on a pu illustrer et observer que ces densités sont  bien approchées par un mélange gaussien.
+

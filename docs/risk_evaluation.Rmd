@@ -1,0 +1,281 @@
+---
+title: "Pratique de la fiabilité"
+author: "Eva BOGUSLAWSKI, Audrey CANAL, Giulia SANTARSIERI"
+date: "21/03/2021"
+output: rmarkdown::github_document
+---
+
+
+```{r setup, include=FALSE}
+options(knitr.duplicate.label = "allow")
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+library(ggplot2)
+library(stats)
+library(spatstat)
+library(tidyverse)
+library(readxl)
+library(evd)
+library(triangle)
+library(here)
+library(knitr)
+library(gridExtra)
+```
+
+<!-- chargement données -->
+
+```{r}
+data <- read_excel(paste0(here(),"/data.xlsx"))
+names(data) <- c("Annee", "Debit", "Hauteur")
+```
+
+# Introduction
+
+Dans le but de protéger une installation industrielle se trouvant en bordure d'une rivière, nous voulons construire une digue. En effet, cette dernière permettra de réduire le risque d'une inondation, causée par des hautes crues, mettant en danger le site. Les ingénieurs en charge de la construction de cette digue ont besoin de connaître la hauteur nécessaire de la digue en question.
+
+Notre tâche, en tant que statisticiennes, est donc de déterminer la hauteur optimale en terme de risque et/ou coût. Pour ce faire, nous avons à notre disposition plusieurs éléments :
+
+- des relevés historiques sur le débit et la hauteur maximale annuelle des crues ;
+- un modèle hydraulique qui permet de déduire la hauteur de crue en fonction du débit ;
+- un modèle économique qui permet d'estimer les différents coûts associés à la construction et maintenance de la digue ainsi que les coûts de réparation après une inondation.
+
+Nous allons mettre en œuvre plusieurs approches.
+
+
+# Première Approche : détermination de la hauteur de la digue à partir des relevés de mesures historiques
+
+Dans cette partie, nous allons laisser parler les données, c'est à dire utiliser les données historiques. Nous voulons trouver une hauteur de la digue qui minimise le risque d'inondation. La hauteur n'étant pas une variable bornée, la réponse pourrait simplement être l'infini mais cela n'est pas réaliste. C'est pourquoi, nous avons décidé de travailler avec les quantiles. Arbitrairement et ne pouvant pas communiquer avec le corps de métier, nous nous sommes autorisées un risque de 0.1%. Nous arboderons deux points de vue : un non paramétrique et un paramétrique. 
+
+Avant tout, nous avons remarqué que dans cette base de données nous avons 17% de valeurs manquantes pour la variable `Hauteur`. Nous avons donc besoin de les remplir. Comme nous n'avons aucune valeur maquante dans les données de débit maximal annuel des crues, nous allons nous servir de ces valeurs pour remplir les trous.
+
+
+```{r}
+data %>% 
+  ggplot(aes(x = Debit, y = Hauteur)) + ylim(c(-1,8)) +
+    geom_point() +
+    geom_smooth(aes(colour = "1"), method = "loess", se = F) +
+    geom_jitter(data = data %>% filter(is.na(Hauteur)), aes(Debit,0, color = "2"), height = 0.01, size=1) +
+    scale_color_discrete(name = "", labels = c("LOESS", "Débits associés aux hauteurs manquantes")) +
+    labs(title = "Représentation du débit en fonction de la hauteur") + theme_minimal()
+```
+
+Puisque les observations des débits associées aux valeurs manquantes sont toutes (sauf une) comprises entre les valeurs connues, nous avons décidé d'utiliser la méthode LOESS.
+
+```{r}
+loess_res <- loess(Hauteur ~ Debit,data = data %>% filter(!is.na(Hauteur)))
+loess_pred <- predict(loess_res, newdata = data %>% filter(is.na(Hauteur)) %>% select(Debit))
+data$Hauteur[is.na(data$Hauteur)] = loess_pred
+summary(data)
+```
+Au final, nous n'avons plus qu'une valeur manquante, les autres ont été estimées. 
+
+Nous avons aussi besoin de formuler le problème de façon mathématique. Nous savons qu'en moyenne la côte du fond du cours d'eau en aval fait $Z_v \approx 50$ m et que la côté de la berge vaut $Z_b = 55.5$ m. Donc la surverse $S$ vaut $S = Z_v + H - h_d - Z_b$ et il y aura débordement quand 
+$$H > Z_b - Z_v + h_b = 5.5 + h_b \iff H - 5.5 > h_b$$ 
+
+Nous choisirons alors de prendre le quantile d'ordre $0.999$ car 
+$$\begin{align} 0.001 &= P(H-5.5>h_d) = 1 - P(H-5.5 \leq h_d)\\ &\iff P(H-5.5 \leq h_d) = 0.999 \\ &\iff h_d = quantile(0.999) \end{align}$$
+
+## Point de vue non paramétrique :
+
+Intuitivement,la première façon de trouver la hauteur de la digue qui minimise le risque est de réaliser un histogramme et de prendre un quantile empirique.
+
+```{r}
+ggplot(data, aes(x = Hauteur - 5.5)) +
+  geom_histogram(aes(y=..density..), bins=30, fill = "#1ABC9C") +
+  geom_vline(aes(xintercept = quantile(data$Hauteur - 5.5, probs=c(.999), na.rm = T), colour = "1"), size = 1) +
+  scale_color_discrete(name = "", labels = c("Quantile empirique d'ordre 0.999")) +
+  labs(title = "Histogramme des valeurs historiques de H - 5.5 m", x = "Hauteur maximale annuelle d'eau - 5.5 m", y = "") +
+  theme_minimal()
+```
+
+Pour un risque de 0.1%, il nous faut une digue de hauteur $h_d$ = `r round(quantile(data$Hauteur-5.5, probs = c(.999), na.rm = T),3)` m.
+
+## Non Paramétrique : estimation par noyaux
+
+Une autre méthode intuitive est de faire une estimation par une méthode de noyau de la densité. Nous prendrons le quantile de cette densité estimée.
+
+```{r}
+ggplot(data, aes(x = Hauteur - 5.5)) +
+  geom_histogram(aes(y=..density..), bins=30, fill = "#1ABC9C") +
+  geom_density(aes(colour = "1"), size=1) +
+  scale_color_discrete(name = "", labels = c("Approximation par noyau de la densité")) +
+  labs(title = "Histogramme des valeurs historique de H - 5.5 m", x = "Hauteur maximale annuelle d'eau - 5.5 m", y = "") +
+  theme_minimal()
+f_H <- density(x = data$Hauteur - 5.5, na.rm = T)
+```
+
+Pour un risque de 0.1%, il nous faut une digue de hauteur $h_d$ = `r round(quantile(f_H, probs = .999),3)` m.
+
+## Paramétrique
+
+Nous devons prendre en compte le fait que nous n'avons pas à disposition beaucoup de données et les relevés humains peuvent contenir des erreurs de mesure. Pour pallier à cela, nous pouvons adopter une approche paramétrique. Au vu de l'histogramme et de l'estimation de la densité par noyau (ci-dessus), nous avons pris l'initiative d'ajuster une loi gaussienne $\mathcal{N}(\bar{X_n}, \sigma_n^2)$
+
+```{r}
+ggplot(data, aes(x = Hauteur - 5.5)) +
+  geom_histogram(aes(y=..density..), bins=15, fill = "#1ABC9C") +
+  geom_density(aes(colour = "1")) +
+  stat_function(fun = dnorm, args = list(mean = mean(data$Hauteur - 5.5, na.rm=T), sd = sd(data$Hauteur - 5.5, na.rm=T)), size = 1, col = "blue") +
+  scale_color_discrete(name = "", labels = c("Approximation par noyau de la densité")) +
+  labs(title = "Histogramme des valeurs historique de H - 5.5 m \nComparaison avec la loi Normale", x = "Hauteur maximale annuelle d'eau - 5.5 m", y = "") +
+  theme_minimal()
+```
+
+Pour un risque de 0.1%, il nous faut une digue de hauteur $h_d$ = `r round(qnorm(.999, mean = mean(data$Hauteur - 5.5, na.rm=T), sd = sd(data$Hauteur - 5.5, na.rm=T)),3)` m.
+
+## Conclusion 
+
+Pour récapituler, nous pouvons voir dans le tableau ci dessous, les valeurs de $h_d$ trouvées :
+```{r}
+data.frame(methode = c("Quantile Empirique", "Estimation par noyau", "Loi Normale"),
+           hd_risque0.001 = c(round(quantile(data$Hauteur-5.5, probs = c(.999), na.rm = T),1),
+                            round(quantile(f_H, probs = .999),1),
+                            round(qnorm(.999, mean = mean(data$Hauteur - 5.5, na.rm=T), sd = sd(data$Hauteur - 5.5, na.rm=T)),1))) %>% kable()
+```
+
+La première méthode nous donne une valeur plus petite que pour les deux autres. Cela peut être dû au fait qu'on a peu de valeurs sur les plages externes. Pour les deux autres résultats, nous constatons qu'ils sont proches, ce qui est rassurant. Pour conclure, nous conseillerons aux ingénieurs de construire une digue d'au minimum 2 m (pouvant aller jusqu'à 2.5 m).
+
+
+# Deuxième Approche : détermination de la hauteur de la digue à partir du modèle hydraulique
+
+Dans cette deuxième approche nous allons utiliser le modèle hydraulique. Le but est donc de chercher la hauteur de la digue $h_d$ qui minimise le risque de surverse. C'est à dire qu'on cherche à ce que la probabilité que la surverse $S$ soit positive. Pour estimer cette probabilité, nous allons utiliser une méthode de Monte-Carlo standard en se basant sur les lois de probabilités données pour nos variables. Nous avons choisi cette méthode car elle est facile à implémenter et elle tourne assez rapidement sur nos machines.
+
+```{r, warning=F, fig.width=10}
+set.seed(1234)
+MC_hydro<-function(vect_h=0, n=100){
+  L=5000
+  B=300
+  Zb = 55.5
+  df_res <- data.frame()
+  for(h in vect_h){
+    Q <- rgumbel(n, loc=1013, scale=558)
+    K <- rnorm(n, 30, 7.5)
+    Zv <- rtriangle(n, 50-1, 50+1)
+    Zm <- rtriangle(n, 55-1, 55+1)
+    H <- (Q/(K*sqrt((Zm-Zv)/L)*B))**(3/5)
+    y <- ifelse(is.na(H), F, Zv + H - h - Zb > 0)
+    m <- mean(y)
+    v <- var(y)
+    e <- 1.96*sqrt(var(y)/length(y))
+    df_res <- rbind(df_res, data.frame(h=h, proba = m, lower = m-e, upper = m+e, var = v))
+  }
+  df_res
+}
+
+MC_hydro_res <- MC_hydro(vect_h=seq(0,30,0.2), n=100000)
+
+p1 <- MC_hydro_res %>% 
+            ggplot(aes(x=h)) + geom_line(aes(y=proba))  + geom_line(aes(y=upper), lty = "dashed", col = "red") + 
+            geom_line(aes(y=lower), lty="dashed", col = "red") + geom_hline(yintercept = 0.001, col = "blue")  +
+            labs(title = "Echelle décimale",x = "Hauteur de la digue h_d (en m)", y = "Probabilité") + theme_bw()
+p2 <- MC_hydro_res %>% 
+            ggplot(aes(x=h)) + geom_line(aes(y=proba)) + geom_line(aes(y=proba))  + geom_line(aes(y=upper), lty = "dashed", col = "red") + 
+            geom_line(aes(y=lower), lty="dashed", col = "red") + scale_y_continuous(trans='log10') + geom_hline(yintercept = 0.001, col = "blue") +
+            labs(title = "Echelle logarithmique", x = "Hauteur de la digue h_d (en m)", y = "Probabilité ") + theme_bw()
+grid.arrange(p1, p2, ncol=2, top = "Probabilité de surverse en fonction de la hauteur de la digue")
+```
+
+Nous observons que la valeur de $h_d$ que nous recherchons a l'air d'être aux alentours de 2 m. Pour plus de précision nous allons regarder dans la table de données directement : nous trouvons $h_d \approx 2.3$ m.
+
+```{r}
+data.frame(methode = c("Quantile Empirique", "Estimation par noyau", "Loi Normale", "MC_Modele_Hydrau"),
+           hd_risque0.001 = c(round(quantile(data$Hauteur-5.5, probs = c(.999), na.rm = T),1),
+                            round(quantile(f_H, probs = .999),1),
+                            round(qnorm(.999, mean = mean(data$Hauteur - 5.5, na.rm=T), sd = sd(data$Hauteur - 5.5, na.rm=T)),1),2.3)) %>% kable()
+```
+
+Nous retombons sur des valeurs équivalentes à la première approche, pour un risque de 0.1%. Qu'en est-il pour un autre risque ? 
+
+```{r}
+MC_hydro_res %>% filter(h<10) %>% rename(hydraulique = proba) %>%
+  mutate(q_empirique = 1-ecdf(data$Hauteur-5.5)(h), 
+         noyau = 1-CDF(f_H)(h), 
+         normale = 1-pnorm(h,mean(data$Hauteur - 5.5, na.rm = T), sd(data$Hauteur - 5.5, na.rm = T))) %>% 
+  pivot_longer(cols = c(hydraulique, q_empirique, noyau, normale), names_to = "Methode", values_to = "proba") %>%
+  ggplot(aes(x=h)) + geom_line(aes(y=proba, x = h, col = Methode), size=1) +
+  geom_hline(yintercept = 0.001) + geom_hline(yintercept = 0.01, lty = 2) +
+  geom_text(aes(x = 9, y = 0.015, label = "0.01")) + geom_text(aes(x = 9, y = 0.005, label = "0.001")) +
+  labs(title = "Probabilité de surverse en fonction de la hauteur de la digue", x = "Hauteur de la digue (en m)", y = "Probabilité") +
+  theme_bw()
+```
+
+Nous constatons effectivement que pour un autre risque, par exemple 1%, les résultats sont très différents. Il faut rester vigilant quant à la comparaison de nos approches.
+
+Néanmoins, cette approche nous permet de dépasser une limite de la précédente. En effet, nous pouvons choisir des risques plus petits et nous ne dépendons pas des valeurs maximum déjà relevées. Pour conclure, nous conseillerons aux ingénieurs de construire une digue d'au minimum 2.3 m.
+
+# Troisième approche : détermination de la hauteur de la digue à partir du modèle économique
+
+Dans cette approche, nous allons utiliser le modèle économique et hydraulique. Nous voulons ici minimiser le risque économique lié à la surverse.
+
+Nous avons décidé de modéliser les coûts de dommage au site $C_s$ et de dommage à la digue $C_g$ de sorte à avoir une valeur pour le coût pour n'importe quelle valeur de la surverse.
+
+```{r}
+plot(c(-0.1,0,0.5,1,1.5,2),c(0,0,150,1500,2000,2000),
+     main = "Modélisation de C_s par une sigmoïde",
+     xlab = "Surverse S par rapport à la digue (en m)", ylab = "Coût de dommage Cs(S) au site (en M€)")
+curve(2000/(1+exp(-(x-0.85)*7)), add=T)
+
+plot(c(-0.1,0,0.5,1,1.5,2),c(0,10,50,100,100,100),
+     main = "Modélisation de C_g par une fonction linéaire par morceaux",
+     xlab = "Surverse S par rapport à la digue (en m)", ylab = "Coût de dommage Cg à la digue (% de Ci (en k€))")
+curve(sapply(x, function(y) max(min(100/1.1*y + 100/1.1*0.1,100),0)), add=T)
+```
+
+Ensuite, nous appliquons comme précédement une méthode de Monte_Carlo standard. 
+
+```{r}
+MC_cout<-function(vect_h=0, n=100){
+  L=5000
+  B=300
+  Zb = 55.5
+  df_res <- data.frame()
+  Ci <- function(h){
+    case_when(h == 0.1 ~ 100,
+              h == 0.5 ~ 225,
+              h == 1 ~ 1034,
+              h == 2 ~ 4750,
+              h == 3 ~ 11023,
+              h == 4 ~ 16971,
+              h == 5 ~ 21692,
+              h == 6 ~ 26509,
+              h == 7 ~ 31408,
+              h == 8 ~ 36377,
+              h == 9 ~ 41409,
+              h == 10 ~ 46498)
+  }
+  
+  Cs <- function(S){2*10**6/(1+exp(-(S-0.85)*7))}
+  Cg <- function(S,h){sapply(S, function(x) max(min(100/1.1*x + 100/1.1*0.1,100),0))/100*Ci(h)}
+  
+  for(h in vect_h){
+    Cd = matrix(0, nrow=n, ncol=30)
+    for(i in 1:30){
+      Q <- rgumbel(n, loc=1013, scale=558)
+      K <- rnorm(n, 30, 7.5)
+      Zv <- rtriangle(n, 50-1, 50+1)
+      Zm <- rtriangle(n, 55-1, 55+1)
+      H <- (Q/(K*sqrt((Zm-Zv)/L)*B))**(3/5)
+      S <- ifelse(is.na(H), 0, Zv + H - h - Zb)
+      Cd[,i] = Cs(S) + Cg(S,h)
+    }
+    Cc = (1.3*Ci(h) + apply(Cd,1,sum))/30
+    
+    m <- mean(Cc)
+    v <- var(Cc)
+    e <- 1.96*sqrt(var(Cc)/length(Cc))
+    df_res <- rbind(df_res, data.frame(h=h, cout = m, lower = m-e, upper = m+e, var = v))
+  }
+  df_res
+}
+
+MC_cout_res <- MC_cout(c(0.1, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10), n=100000)
+MC_cout_res
+
+MC_cout_res %>% ggplot(aes(x=h)) + geom_line(aes(y=cout))  + geom_line(aes(y=upper), lty = "dashed", col = "red") + geom_line(aes(y=lower), lty="dashed", col = "red") + theme_bw() + labs(title = "Coût en fonction de la hauteur de la digue", x = "Hauteur de la digue (en m)", y="Coût annuel (en k€)")
+
+```
+
+La valeur de $h_d$ qui minimse le coût est $h_d = 3$ m. Notons qu'ici nous avons une précision de $h_d$ au mètre près. Cela reste encore proche des résultats précédents. Avec cette approche, nous préconisons de construire une digue de 3m.
+
+# Conclusion
+
+Nous pouvons dire que pour les deux premières approches, nous avons minimisé un risque de débordement et nous avons trouvé des résultats équivalents : seule la méthode liée au quantile empirique n'offre pas de résultat satisfaisant. Notons qu'il y a une décision importante à prendre concernant le seuil de risque qu'on s'autorise. La troisième approche diffère des autres car elle minimise un risque économique. Les enjeux en sont tout à fait différents. 
+Une discussion avec le corps de métiers et avec les actionnaires permettrait de déterminer quel est l'enjeu le plus important. Nous pourrions néanmoins proposer aux ingénieurs de choisir une hauteur de 3m pour la digue car cela permettrait de minimiser le risque économique lié à la surverse tout en garantissant un risque de surverse très faible.
