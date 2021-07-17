@@ -1,7 +1,3 @@
----
-title-heading: false
----
-
 # Data Science and Machine Learning projects
 
 ## DGML, Data Gouv for Machine Learning
