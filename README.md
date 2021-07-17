@@ -2,7 +2,7 @@
 
 ## DGML, Data Gouv for Machine Learning
 
-Open Data, such as the data on data.gouv.fr, is sometimes neglected in Machine Learning applications, since it can be hard to identify, among thousands of datasets, those adequate for Machine Learning. In DGML, you can quickly choose a dataset from data.gouv.fr for Machine Learning and check all the informations you might need to build a Machine Learning application : statistics, automatic train and test of algorithms and examples of code.
+Open Data on data.gouv.fr is neglected in Machine Learning applications, since it can be hard to identify, among thousands of datasets, those adequate for ML. In DGML, you can quickly choose a dataset and check all the informations you might need to build a Machine Learning application : statistics, automatic train and test of algorithms and examples of code.
 
 **Website**: [https://datascience.etalab.studio/dgml/](https://datascience.etalab.studio/dgml/)
 
