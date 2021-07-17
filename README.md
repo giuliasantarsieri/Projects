@@ -1,12 +1,18 @@
+---
+title-heading: false
+---
+
 # Data Science and Machine Learning projects
 
 ## DGML, Data Gouv for Machine Learning
 
-Open Data, such as the data on data.gouv.fr, is sometimes neglected in Machine Learning applications, since it can be hard to identify, among thousands of datasets, those that would be adequate for Machine Learning. In DGML, you can quickly choose a dataset from data.gouv.fr for Machine Learning and check all the informations you might need to build a Machine Learning application (statistics, automatic train and test of algorithms and examples of code).
+Open Data, such as the data on data.gouv.fr, is sometimes neglected in Machine Learning applications, since it can be hard to identify, among thousands of datasets, those adequate for Machine Learning. In DGML, you can quickly choose a dataset from data.gouv.fr for Machine Learning and check all the informations you might need to build a Machine Learning application : statistics, automatic train and test of algorithms and examples of code.
 
-**Website**: https://datascience.etalab.studio/dgml/
-**Open source code**: https://github.com/etalab-ia/DGML
-**Video (csv Conference):** https://www.youtube.com/watch?v=BrbdvcVcI1Q&t=5s
+**Website**: [https://datascience.etalab.studio/dgml/](https://datascience.etalab.studio/dgml/)
+
+**Open source code**: [https://github.com/etalab-ia/DGML](https://github.com/etalab-ia/DGML)
+
+**Video (csv Conference):** [https://www.youtube.com/watch?v=BrbdvcVcI1Q&t=5s](https://www.youtube.com/watch?v=BrbdvcVcI1Q&t=5s)
 
 ## University projects
 
