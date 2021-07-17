@@ -16,7 +16,7 @@ Open Data on data.gouv.fr is neglected in Machine Learning applications, since i
 2. [Parallel computing implementation of the Game of Life](https://github.com/giuliasantarsieri/Projects/blob/main/parallel_computing/game_of_life.py), Python, MPI
 3. [Risk assessment on industrial data](https://giuliasantarsieri.github.io/Projects/docs/risk_evaluation.html), R
 4. [Time series forecasting of household power consumption](https://giuliasantarsieri.github.io/Projects/docs/time_series_power_consumption), R
-5. [EM algorithm for Gaussian mixture models](https://giuliasantarsieri.github.io/uni_projects/docs/EM_project), R. [R shiny application](https://github.com/giuliasantarsieri/Projects/blob/main/rshiny_EM_algorithm/shiny_app.R)
+5. [EM algorithm for Gaussian mixture models](https://giuliasantarsieri.github.io/Projects/docs/EM_project), R. [R shiny application](https://github.com/giuliasantarsieri/Projects/blob/main/rshiny_EM_algorithm/shiny_app.R)
 
 ## Personal projects
 
